@@ -6,5 +6,10 @@
 		"fast-glob": "^3.3.3",
 		"googleapis": "^148.0.0",
 		"node-fetch": "^3.3.2"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.24.0",
+		"eslint": "^9.24.0",
+		"globals": "^16.0.0"
 	}
 }
