@@ -2,6 +2,7 @@ credentials.json
 photos_to_check/*
 !photos_to_check/.gitkeep
 token.json
+cache/
 
 # Reference: https://www.npmjs.com/package/create-gitignore
 

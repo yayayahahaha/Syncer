@@ -1,14 +1,61 @@
 import fs from 'fs/promises'
+import path from 'path'
 
 import { ensureLogsDir, isMatching, OUTPUT_FILE } from './utils.js'
 import { authorize, searchGooglePhotosByDate } from './google-utils.js'
 import { getLocalPhotosMetadata } from './photo-utils.js'
 
+const CACHE_DIR = path.join(process.cwd(), 'cache')
+const RECENT_DAYS = 3
+
+// 確保 cache 資料夾存在
+async function ensureCacheDir() {
+  try {
+    await fs.access(CACHE_DIR)
+  } catch {
+    await fs.mkdir(CACHE_DIR)
+  }
+}
+
+// 檢查日期是否在最近幾天內（這些資料不快取）
+function isRecentDate(dateStr) {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
+  return diffDays <= RECENT_DAYS
+}
+
+// 從快取讀取或寫入資料
+async function getOrSetCache(dateStr, getter) {
+  const cachePath = path.join(CACHE_DIR, `${dateStr}.json`)
+
+  try {
+    // 嘗試讀取快取
+    const cacheData = await fs.readFile(cachePath, 'utf-8')
+    console.log(`📦 從快取讀取 ${dateStr} 的資料`)
+    return JSON.parse(cacheData)
+  } catch {
+    // 如果沒有快取或讀取失敗，執行 getter
+    const data = await getter()
+
+    // 如果不是最近幾天的資料，就存入快取
+    if (!isRecentDate(dateStr)) {
+      console.log(`💾 將 ${dateStr} 的資料存入快取`)
+      await fs.writeFile(cachePath, JSON.stringify(data, null, 2))
+    } else {
+      console.log(`⚠️ ${dateStr} 是最近 ${RECENT_DAYS} 天的資料，不進行快取`)
+    }
+
+    return data
+  }
+}
+
 const fallbackDateList = [new Date('2025/03/27').getTime()]
 
 async function main({ fallbackDateList = [] } = {}) {
-  // 確保 logs 的資料夾存在
+  // 確保必要的資料夾存在
   await ensureLogsDir()
+  await ensureCacheDir()
 
   // Google Photo API 驗證
   const auth = await authorize()
@@ -30,15 +77,20 @@ async function main({ fallbackDateList = [] } = {}) {
   const googlePhotosMap = {}
   for (const dateStr of uniqueDateStrs) {
     console.log(`☁️ 查詢 ${dateStr} 的備份資料…`)
-    const items = await searchGooglePhotosByDate(auth, dateStr)
+
+    const items = await getOrSetCache(dateStr, async () => {
+      const result = await searchGooglePhotosByDate(auth, dateStr)
+      console.log(`✅ ${dateStr} 取得 ${result.length} 筆 Google Photos 資料`)
+      return result
+    })
+
     googlePhotosMap[dateStr] = {
       list: items,
       nameSet: new Set(items.map((item) => item.filename)),
     }
-    console.log(`✅ ${dateStr} 取得 ${items.length} 筆 Google Photos 資料`)
   }
 
-  // 比對每一張照片的檔名、時間與解析度
+  // 比對每一張照片的檔名與時間
   const output = localPhotos.map((photo) => {
     // 找出所有可能的日期範圍中是否有匹配的 Google Photos 項目
     const match = photo.possibleCreateDateList.some((range) => {
