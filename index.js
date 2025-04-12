@@ -83,9 +83,10 @@ async function main() {
 
         // 檢查這個日期的所有照片
         for (const googleItem of googleItems) {
-          if (isMatching(photo, googleItem)) {
+          const matchResult = isMatching(photo, googleItem)
+          if (matchResult.isMatch) {
             matchedDate = dateStr
-            match = { isFilenameMatched: false, isPhotoDataMatched: true }
+            match = { isFilenameMatched: false, isPhotoDataMatched: true, deltaTime: matchResult.deltaTime }
             break
           }
         }
@@ -97,7 +98,11 @@ async function main() {
       if (match.isFilenameMatched) {
         console.log(MSG.SUCCESS(`找到 ${photo.fileName} 的備份 (透過檔名匹配，日期: ${matchedDate})`))
       } else {
-        console.log(MSG.SUCCESS(`找到 ${photo.fileName} 的備份 (透過時間匹配，日期: ${matchedDate})`))
+        console.log(
+          MSG.INFO(
+            `找到 ${photo.fileName} 的備份 (透過時間匹配，日期: ${photo.possibleCreateTime}, 誤差為 ${match.deltaTime} 毫秒)`
+          )
+        )
       }
     } else {
       if (!photo.possibleCreateTime) {

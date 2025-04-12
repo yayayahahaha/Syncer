@@ -87,9 +87,9 @@ function isCloseTime(a, b, TIME_TOLERANCE = 2000) {
 export function isMatching(localPhoto, googlePhoto) {
   // 檢查時間是否在可能的時間範圍內
   const googleTime = new Date(googlePhoto.mediaMetadata.creationTime).getTime()
-  const localTime = new Date(localPhoto.createTime).getTime()
+  const localTime = new Date(localPhoto.possibleCreateTime).getTime()
   const timeDiff = Math.abs(googleTime - localTime)
-  const timeThreshold = 5 * 60 * 1000 // 5 分鐘的誤差範圍
+  const timeThreshold = 1000 // 1 秒的誤差
 
   if (testing) {
     console.log(
@@ -99,7 +99,10 @@ export function isMatching(localPhoto, googlePhoto) {
     )
   }
 
-  return timeDiff <= timeThreshold
+  return {
+    isMatch: timeDiff <= timeThreshold,
+    deltaTime: timeDiff,
+  }
 }
 
 async function loadParams() {
