@@ -1,16 +1,17 @@
 import fs from 'fs/promises'
 
-import { ensureLogsDir, isMatching, OUTPUT_FILE } from './utils.js'
+import { ensureLogsDir, isMatching, OUTPUT_FILE, loadParams } from './utils.js'
 import { authorize, searchGooglePhotosByDate } from './google-utils.js'
 import { getLocalPhotosMetadata } from './photo-utils.js'
 import { ensureCacheDir, getOrSetCache } from './cache-utils.js'
 
-const fallbackDateList = [new Date('2025/03/27').getTime()]
-
-async function main({ fallbackDateList = [] } = {}) {
+async function main() {
   // 確保必要的資料夾存在
   await ensureLogsDir()
   await ensureCacheDir()
+
+  // 讀取參數
+  const { fallbackDateList } = await loadParams()
 
   // Google Photo API 驗證
   const auth = await authorize()
@@ -79,6 +80,6 @@ async function main({ fallbackDateList = [] } = {}) {
   console.log(`🔄 結果已輸出至 ${OUTPUT_FILE}`)
 }
 
-main({ fallbackDateList }).catch((err) => {
+main().catch((err) => {
   console.error('程式發生錯誤:', err)
 })

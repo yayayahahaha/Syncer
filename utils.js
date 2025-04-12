@@ -8,6 +8,8 @@ const formattedTimestamp = formatDateToTaiwanTime(timestamp)
 const LOGS_DIR = path.join(process.cwd(), 'logs') // 輸出結果資料夾
 export const OUTPUT_FILE = path.join(LOGS_DIR, `${formattedTimestamp}-result.json`)
 
+const PARAMS_PATH = path.join(process.cwd(), 'params.json')
+
 // 檢查 logs 資料夾是否存在，若不存在則建立
 export async function ensureLogsDir() {
   try {
@@ -78,4 +80,22 @@ export function isMatching(localPhoto, googleItem) {
     isFilenameMatched: false,
     isPhotoDataMatched: timeMatch && resolutionMatch,
   }
+}
+
+async function loadParams() {
+  try {
+    const paramsData = await fs.readFile(PARAMS_PATH, 'utf-8')
+    const params = JSON.parse(paramsData)
+    return {
+      fallbackDateList: (params.fallbackDateList || []).map(date => new Date(date).getTime())
+    }
+  } catch (error) {
+    console.log('⚠️ 無法讀取 params.json，使用預設值')
+    return { fallbackDateList: [] }
+  }
+}
+
+export {
+  PARAMS_PATH,
+  loadParams,
 }
