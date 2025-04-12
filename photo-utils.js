@@ -202,7 +202,7 @@ class ImageStructure {
 
 // 掃描指定資料夾內的圖片，讀取 EXIF 中的 CreateDate 與圖片解析度
 // 若 EXIF 讀取不到時間，則使用檔案建立時間作為備用
-export async function getLocalPhotosMetadata({ fallbackDateList = [] }) {
+export async function getLocalPhotosMetadata({ fallbackDateList = [] } = {}) {
   console.log('🗂️ 檢查備份的資料夾: ', PHOTO_DIR)
 
   const filePahtList = await fg([`**/*.{${IMAGE_EXT.join(',')}}`], { cwd: PHOTO_DIR, absolute: true })

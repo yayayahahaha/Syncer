@@ -42,7 +42,10 @@ export async function authorize(force = false) {
 
 // 根據指定日期查詢 Google Photos，返回該日所有媒體項目
 export async function searchGooglePhotosByDate(auth, dateStr) {
-  const [year, month, day] = dateStr.split('-').map(Number)
+  const startDate = new Date(dateStr)
+  const endDate = new Date(dateStr)
+  endDate.setHours(23, 59, 59, 999)
+
   let nextPageToken = null
   const itemsForDate = []
 
@@ -58,8 +61,16 @@ export async function searchGooglePhotosByDate(auth, dateStr) {
           dateFilter: {
             ranges: [
               {
-                startDate: { year, month, day },
-                endDate: { year, month, day },
+                startDate: {
+                  year: startDate.getUTCFullYear(),
+                  month: startDate.getUTCMonth() + 1,
+                  day: startDate.getUTCDate(),
+                },
+                endDate: {
+                  year: endDate.getUTCFullYear(),
+                  month: endDate.getUTCMonth() + 1,
+                  day: endDate.getUTCDate(),
+                },
               },
             ],
           },
