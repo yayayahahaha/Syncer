@@ -15,7 +15,7 @@ async function generateExifData(filePath, { fallbackDateList = [] }) {
   return new ImageStructure({ filePath, exifOriginTime, fallbackDateList })
 }
 
-const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG']
+const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG', 'mp4']
 
 class DayRange {
   constructor(value = Date.now()) {
@@ -154,6 +154,25 @@ class ImageStructure {
   }
 
   static guessPhotoTimeByName(fileName = '') {
+    // Try V_20250408_225850_OC5.mp4 format
+    const videoMatch = fileName.match(/V_(\d{8})_(\d{6})_[A-Za-z]{2}\d\.mp4/i)
+    if (videoMatch) {
+      const [, date, time] = videoMatch
+      const year = date.slice(0, 4)
+      const month = date.slice(4, 6)
+      const day = date.slice(6, 8)
+      const hour = time.slice(0, 2)
+      const minute = time.slice(2, 4)
+      return `${year}-${month}-${day}T${hour}:${minute}:00.000Z`
+    }
+
+    // Try 2025-01-12-14-38-05.mp4 format
+    const screenRecordMatch = fileName.match(/(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})\.mp4/)
+    if (screenRecordMatch) {
+      const [, year, month, day, hour, minute, second] = screenRecordMatch
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`
+    }
+
     // Try FB_IMG_1743571233206.jpg format
     const fbMatch = fileName.match(/FB_IMG_(\d{13})/i)
     if (fbMatch) {

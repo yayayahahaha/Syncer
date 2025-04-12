@@ -8,8 +8,7 @@ import { ensureCacheDir, getOrSetCache } from './cache-utils.js'
 async function main() {
   // 確保必要的資料夾存在
   console.log(MSG.ACTION('正在檢查必要的資料夾...'))
-  await ensureLogsDir()
-  await ensureCacheDir()
+  await Promise.all([ensureLogsDir(), ensureCacheDir()])
   console.log(MSG.SUCCESS('資料夾檢查完成'))
   console.log()
 
