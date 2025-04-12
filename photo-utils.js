@@ -62,6 +62,7 @@ class ImageStructure {
     this.#setValue('fileName', path.parse(this.filePath).base)
     this.#setValue('exifOriginTime', exifOriginTime ?? null)
     this.#setValue('photoTimeByName', ImageStructure.guessPhotoTimeByName(this.fileName))
+    this.#setValue('possibleCreateTime', this.exifOriginTime ?? this.photoTimeByName ?? null)
 
     this._fallbackDateList = fallbackDateList ?? []
     this.#setPossibleCreateDateList()
@@ -82,6 +83,10 @@ class ImageStructure {
       enumerable: true, // 讓 console.log 看得見
       configurable: false,
     })
+  }
+
+  get possibleCreateDate() {
+    return this.possibleCreateTime.split('T')[0]
   }
 
   get #possibleCreateDateListWithoutFallback() {

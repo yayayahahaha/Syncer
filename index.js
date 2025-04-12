@@ -1,5 +1,4 @@
 import fs from 'fs/promises'
-import path from 'path'
 
 import { ensureLogsDir, isMatching, OUTPUT_FILE, loadParams, MSG } from './utils.js'
 import { authorize, searchGooglePhotosByDate } from './google-utils.js'
@@ -62,29 +61,57 @@ async function main() {
   // 比對每一張照片的檔名與時間
   console.log(MSG.ACTION('開始比對照片...'))
   const output = localPhotos.map((photo) => {
-    // 找出所有可能的日期範圍中是否有匹配的 Google Photos 項目
-    const match = photo.possibleCreateDateList.some((range) => {
+    let matchedDate = null
+    let match = null
+
+    // 先檢查所有日期的檔名匹配
+    for (const range of photo.possibleCreateDateList) {
       const dateStr = range.start.split('T')[0]
-      const { list: googleItems, nameSet } = googlePhotosMap[dateStr] || { list: [], nameSet: new Set() }
+      const { nameSet } = googlePhotosMap[dateStr] || { nameSet: new Set() }
 
-      // 先檢查檔名是否匹配
       if (nameSet.has(photo.fileName)) {
-        return { isFilenameMatched: true, isPhotoDataMatched: true }
+        matchedDate = dateStr
+        match = { isFilenameMatched: true, isPhotoDataMatched: true }
+        break
       }
+    }
 
-      // 再檢查時間和解析度是否匹配
-      const matchedItem = googleItems.find((googleItem) => isMatching(photo, googleItem))
-      if (matchedItem) {
-        return { isFilenameMatched: false, isPhotoDataMatched: true }
+    // 如果沒有找到檔名匹配，且照片有創建時間，才檢查時間匹配
+    if (!match && photo.possibleCreateTime) {
+      for (const range of photo.possibleCreateDateList) {
+        const dateStr = range.start.split('T')[0]
+        const { list: googleItems } = googlePhotosMap[dateStr] || { list: [] }
+
+        // 檢查這個日期的所有照片
+        for (const googleItem of googleItems) {
+          if (isMatching(photo, googleItem)) {
+            matchedDate = dateStr
+            match = { isFilenameMatched: false, isPhotoDataMatched: true }
+            break
+          }
+        }
+        if (match) break
       }
-
-      return false
-    })
+    }
 
     if (match) {
-      console.log(MSG.SUCCESS(`找到 ${photo.fileName} 的備份`))
+      if (match.isFilenameMatched) {
+        console.log(MSG.SUCCESS(`找到 ${photo.fileName} 的備份 (透過檔名匹配，日期: ${matchedDate})`))
+      } else {
+        console.log(MSG.SUCCESS(`找到 ${photo.fileName} 的備份 (透過時間匹配，日期: ${matchedDate})`))
+      }
     } else {
-      console.log(MSG.ERROR(`沒有找到 ${photo.fileName} 的備份`))
+      if (!photo.possibleCreateTime) {
+        console.log(MSG.WARNING(`沒有找到 ${photo.fileName} 的備份 (此照片無創建時間，僅檢查檔名)`))
+      } else {
+        console.log(
+          MSG.ERROR(
+            `沒有找到 ${photo.fileName} 的備份 (日期: ${photo.possibleCreateDate}, 時間: ${new Date(
+              photo.possibleCreateTime
+            ).toISOString()})`
+          )
+        )
+      }
     }
     return { ...photo, ...match }
   })
