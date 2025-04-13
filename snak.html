@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Snake Game</title>
+  <style>
+    canvas {
+      border: 1px solid black;
+      display: block;
+      margin: 0 auto;
+    }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="400"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gridSize = 20;
+    const tileCount = canvas.width / gridSize;
+    
+    let snake = [
+      {x: 10, y: 10}
+    ];
+
+    const fruitTypes = [
+      { color: 'red', leafColor: '#2d5', type: 'apple' },
+      { color: 'orange', leafColor: '#2d5', type: 'orange' },
+      { color: '#8B4513', leafColor: '#654321', type: 'kiwi' },
+      { color: '#4B0082', leafColor: '#2d5', type: 'grape' },
+      { color: '#FFD700', leafColor: '#2d5', type: 'banana' }
+    ];
+
+    const snakeColors = [
+      'rgb(0, %v, 0)',      // 綠色
+      'rgb(%v, 0, 0)',      // 紅色
+      'rgb(0, 0, %v)',      // 藍色
+      'rgb(%v, %v, 0)',     // 黃色
+      'rgb(%v, 0, %v)'      // 紫色
+    ];
+    let currentColorIndex = 0;
+    let fruitsEatenCount = 0;
+
+    // 背景顏色漸變相關變數 - 使用對比色組合
+    const backgroundColors = [
+      { r: 255, g: 50, b: 50 },    // 紅色
+      { r: 50, g: 200, b: 255 },   // 青色
+      { r: 255, g: 150, b: 0 },    // 橙色  
+      { r: 0, g: 100, b: 255 },    // 藍色
+      { r: 200, g: 50, b: 255 },   // 紫色
+      { r: 200, g: 255, b: 0 }     // 黃綠色
+    ];
+    let currentBgColorIndex = 0;
+    let nextBgColorIndex = 1;
+    let colorTransitionProgress = 0;
+    const colorTransitionSpeed = 0.05; // 加快速度
+
+    // 初始化食物時確保食物不會生成在蛇身上
+    function generateNewFoodPosition() {
+      let newPos;
+      do {
+        newPos = {
+          x: Math.floor(Math.random() * tileCount),
+          y: Math.floor(Math.random() * tileCount)
+        };
+      } while(snake.some(segment => segment.x === newPos.x && segment.y === newPos.y));
+      return newPos;
+    }
+
+    let foods = [];
+    for(let i = 0; i < 3; i++) {
+      const pos = generateNewFoodPosition();
+      foods.push({
+        ...pos,
+        ...fruitTypes[Math.floor(Math.random() * fruitTypes.length)]
+      });
+    }
+
+    // 新增瓢蟲，確保不會生成在蛇身上或食物上
+    function generateNewBugPosition() {
+      let newPos;
+      do {
+        newPos = {
+          x: Math.floor(Math.random() * tileCount),
+          y: Math.floor(Math.random() * tileCount)
+        };
+      } while(
+        snake.some(segment => segment.x === newPos.x && segment.y === newPos.y) ||
+        foods.some(food => food.x === newPos.x && food.y === newPos.y)
+      );
+      return newPos;
+    }
+
+    let bug = generateNewBugPosition();
+
+    let dx = 1;
+    let dy = 0;
+    let score = 0;
+    let gameOver = false;
+    let lastUpdate = 0;
+    const gameSpeed = 100; // 控制遊戲速度（毫秒）
+    
+    document.addEventListener('keydown', (e) => {
+      if(gameOver) {
+        resetGame();
+        return;
+      }
+      
+      // 防止在同一個更新週期內多次改變方向
+      const now = Date.now();
+      if (now - lastUpdate < gameSpeed) return;
+      
+      switch(e.key) {
+        case 'ArrowUp':
+          if(dy !== 1) { dx = 0; dy = -1; lastUpdate = now; }
+          break;
+        case 'ArrowDown':
+          if(dy !== -1) { dx = 0; dy = 1; lastUpdate = now; }
+          break;
+        case 'ArrowLeft':
+          if(dx !== 1) { dx = -1; dy = 0; lastUpdate = now; }
+          break;
+        case 'ArrowRight':
+          if(dx !== -1) { dx = 1; dy = 0; lastUpdate = now; }
+          break;
+      }
+    });
+
+    function drawBackground() {
+      // 計算當前和下一個顏色之間的插值
+      const currentColor = backgroundColors[currentBgColorIndex];
+      const nextColor = backgroundColors[nextBgColorIndex];
+      
+      const r = Math.floor(currentColor.r + (nextColor.r - currentColor.r) * colorTransitionProgress);
+      const g = Math.floor(currentColor.g + (nextColor.g - currentColor.g) * colorTransitionProgress);
+      const b = Math.floor(currentColor.b + (nextColor.b - currentColor.b) * colorTransitionProgress);
+      
+      // 更新顏色過渡進度
+      colorTransitionProgress += colorTransitionSpeed;
+      if (colorTransitionProgress >= 1) {
+        colorTransitionProgress = 0;
+        currentBgColorIndex = nextBgColorIndex;
+        nextBgColorIndex = (nextBgColorIndex + 1) % backgroundColors.length;
+      }
+
+      const gradient = ctx.createLinearGradient(
+        canvas.width, 0,  // 右上角
+        0, canvas.height  // 左下角
+      );
+      gradient.addColorStop(0, `rgb(${r}, ${g}, ${b})`);
+      gradient.addColorStop(1, `rgb(${r-60}, ${g-60}, ${b-60})`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for(let i = 0; i < 20; i++) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(
+          Math.random() * canvas.width,
+          Math.random() * canvas.height,
+          Math.random() * 5,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
+    }
+
+    function gameLoop() {
+      if(gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.font = '30px Arial';
+        ctx.fillText('Game Over!', canvas.width/2 - 70, canvas.height/2);
+        ctx.font = '20px Arial';
+        ctx.fillText('Press any key to restart', canvas.width/2 - 100, canvas.height/2 + 40);
+        ctx.fillText('Final Score: ' + score, canvas.width/2 - 50, canvas.height/2 + 80);
+        return;
+      }
+
+      const head = {
+        x: snake[0].x + dx,
+        y: snake[0].y + dy
+      };
+      
+      // 檢查牆壁碰撞
+      if(head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+        gameOver = true;
+        gameLoop();
+        return;
+      }
+      
+      // 檢查自身碰撞
+      if(snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+        gameOver = true;
+        gameLoop();
+        return;
+      }
+      
+      snake.unshift(head);
+      
+      // 檢查食物碰撞
+      let foodEaten = false;
+      foods = foods.filter(food => {
+        if(head.x === food.x && head.y === food.y) {
+          score += 10;
+          foodEaten = true;
+          fruitsEatenCount++;
+          if(fruitsEatenCount % 5 === 0) {
+            currentColorIndex = (currentColorIndex + 1) % snakeColors.length;
+          }
+          return false;
+        }
+        return true;
+      });
+
+      // 檢查瓢蟲碰撞
+      if(head.x === bug.x && head.y === bug.y) {
+        if(snake.length > 2) {
+          snake.pop();
+          snake.pop();
+        } else {
+          gameOver = true;
+          gameLoop();
+          return;
+        }
+        bug = generateNewBugPosition();
+      }
+
+      // 生成新食物
+      while(foods.length < 3) {
+        const pos = generateNewFoodPosition();
+        foods.push({
+          ...pos,
+          ...fruitTypes[Math.floor(Math.random() * fruitTypes.length)]
+        });
+      }
+
+      if(!foodEaten) {
+        snake.pop();
+      }
+      
+      drawBackground();
+      
+      // 繪製瓢蟲
+      const bugX = bug.x * gridSize + gridSize/2;
+      const bugY = bug.y * gridSize + gridSize/2;
+      
+      ctx.fillStyle = '#FF0000';
+      ctx.beginPath();
+      ctx.arc(bugX, bugY, gridSize/2 - 2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = 'black';
+      const spots = [
+        {x: -3, y: -3},
+        {x: 3, y: -3},
+        {x: -3, y: 3},
+        {x: 3, y: 3}
+      ];
+      spots.forEach(spot => {
+        ctx.beginPath();
+        ctx.arc(bugX + spot.x, bugY + spot.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      
+      ctx.fillStyle = 'black';
+      ctx.beginPath();
+      ctx.arc(bugX, bugY - gridSize/3, gridSize/4, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 繪製食物
+      foods.forEach(food => {
+        ctx.fillStyle = food.color;
+        ctx.beginPath();
+        ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, gridSize/2 - 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (food.type !== 'grape') {
+          ctx.fillStyle = food.leafColor;
+          ctx.beginPath();
+          ctx.ellipse(food.x * gridSize + gridSize/2, food.y * gridSize + 2, 4, 6, Math.PI/4, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = '#2d5';
+          ctx.beginPath();
+          ctx.moveTo(food.x * gridSize + gridSize/2, food.y * gridSize + 2);
+          ctx.lineTo(food.x * gridSize + gridSize/2, food.y * gridSize - 4);
+          ctx.stroke();
+        }
+      });
+      
+      // 繪製蛇
+      snake.forEach((segment, index) => {
+        const colorValue = Math.max(100, 255 - (index * 5));
+        const currentColor = snakeColors[currentColorIndex].replace(/%v/g, colorValue);
+        ctx.fillStyle = currentColor;
+        
+        ctx.beginPath();
+        ctx.arc(segment.x * gridSize + gridSize/2, segment.y * gridSize + gridSize/2, gridSize/2 - 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        if(index === 0) {
+          ctx.fillStyle = 'white';
+          const eyeX = segment.x * gridSize + gridSize/2;
+          const eyeY = segment.y * gridSize + gridSize/2;
+          
+          ctx.beginPath();
+          ctx.arc(eyeX - 4, eyeY - 2, 3, 0, Math.PI * 2);
+          ctx.fill();
+          
+          ctx.beginPath();
+          ctx.arc(eyeX + 4, eyeY - 2, 3, 0, Math.PI * 2);
+          ctx.fill();
+          
+          ctx.fillStyle = 'black';
+          ctx.beginPath();
+          ctx.arc(eyeX - 4 + dx*2, eyeY - 2 + dy*2, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(eyeX + 4 + dx*2, eyeY - 2 + dy*2, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      
+      // 繪製分數
+      ctx.fillStyle = 'black';
+      ctx.font = '20px Arial';
+      ctx.fillText('Score: ' + score, 10, 30);
+      
+      setTimeout(gameLoop, gameSpeed);
+    }
+    
+    function resetGame() {
+      snake = [{x: 10, y: 10}];
+      dx = 1;
+      dy = 0;
+      score = 0;
+      gameOver = false;
+      currentColorIndex = 0;
+      fruitsEatenCount = 0;
+      lastUpdate = 0;
+      
+      // 重置背景顏色相關變數
+      currentBgColorIndex = 0;
+      nextBgColorIndex = 1;
+      colorTransitionProgress = 0;
+      
+      foods = [];
+      for(let i = 0; i < 3; i++) {
+        const pos = generateNewFoodPosition();
+        foods.push({
+          ...pos,
+          ...fruitTypes[Math.floor(Math.random() * fruitTypes.length)]
+        });
+      }
+
+      bug = generateNewBugPosition();
+      
+      gameLoop();
+    }
+    
+    gameLoop();
+  </script>
+</body>
+</html>

@@ -1,9 +1,17 @@
 import fg from 'fast-glob'
 import path from 'path'
-import fs from 'fs/promises'
 import { PHOTO_DIR } from './const.js'
 import exiftoolVendored from 'exiftool-vendored'
 const { ExifTool } = exiftoolVendored
+
+function checkTimeFormat(time) {
+  try {
+    new Date(time).toISOString()
+    return time
+  } catch {
+    return null
+  }
+}
 
 async function generateExifData(filePath, { fallbackDateList = [] }) {
   const exiftool = new ExifTool({ taskTimeoutMillis: 5000 })
@@ -12,10 +20,19 @@ async function generateExifData(filePath, { fallbackDateList = [] }) {
   exiftool.end()
 
   const exifOriginTime = exiftoolTags.DateTimeOriginal?.toString() ?? null
-  return new ImageStructure({ filePath, exifOriginTime, fallbackDateList })
+  const exifCreateDate = exiftoolTags.CreateDate?.toString() ?? null
+  const exifModifyDate = exiftoolTags.FileModifyDate?.toString() ?? null
+  return new ImageStructure({
+    filePath,
+    exifOriginTime,
+    exifCreateDate,
+    exifModifyDate,
+    fallbackDateList,
+    exiftoolTags,
+  })
 }
 
-const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG']
+const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG', 'mp4', 'mov']
 
 class DayRange {
   constructor(value = Date.now()) {
@@ -56,12 +73,19 @@ class DayRange {
 
 class ImageStructure {
   constructor(payload = {}) {
-    let { filePath, exifOriginTime, fallbackDateList } = payload
+    let { filePath, exifOriginTime, exifCreateDate, exifModifyDate, fallbackDateList, exiftoolTags } = payload
 
     this.#setValue('filePath', filePath ?? '')
     this.#setValue('fileName', path.parse(this.filePath).base)
-    this.#setValue('exifOriginTime', exifOriginTime ?? null)
+    this.#setValue('exifOriginTime', checkTimeFormat(exifOriginTime) ?? null)
+    this.#setValue('exifCreateDate', checkTimeFormat(exifCreateDate) ?? null)
+    this.#setValue('exifModifyDate', checkTimeFormat(exifModifyDate) ?? null)
+    this.#setValue('exiftoolTags', exiftoolTags ?? null)
     this.#setValue('photoTimeByName', ImageStructure.guessPhotoTimeByName(this.fileName))
+    this.#setValue(
+      'possibleCreateTime',
+      this.exifOriginTime ?? this.exifCreateDate ?? this.exifModifyDate ?? this.photoTimeByName ?? null
+    )
 
     this._fallbackDateList = fallbackDateList ?? []
     this.#setPossibleCreateDateList()
@@ -84,11 +108,45 @@ class ImageStructure {
     })
   }
 
+  get possibleCreateDate() {
+    return this.possibleCreateTime.split('T')[0]
+  }
+
   get #possibleCreateDateListWithoutFallback() {
     const dates = new Set()
 
     if (this.exifOriginTime) {
       const exifDate = new Date(this.exifOriginTime)
+      dates.add(exifDate.toISOString().split('T')[0])
+
+      // Add day before
+      const prevDay = new Date(exifDate)
+      prevDay.setDate(prevDay.getDate() - 1)
+      dates.add(prevDay.toISOString().split('T')[0])
+
+      // Add day after
+      const nextDay = new Date(exifDate)
+      nextDay.setDate(nextDay.getDate() + 1)
+      dates.add(nextDay.toISOString().split('T')[0])
+    }
+
+    if (this.exifCreateDate) {
+      const exifDate = new Date(this.exifCreateDate)
+      dates.add(exifDate.toISOString().split('T')[0])
+
+      // Add day before
+      const prevDay = new Date(exifDate)
+      prevDay.setDate(prevDay.getDate() - 1)
+      dates.add(prevDay.toISOString().split('T')[0])
+
+      // Add day after
+      const nextDay = new Date(exifDate)
+      nextDay.setDate(nextDay.getDate() + 1)
+      dates.add(nextDay.toISOString().split('T')[0])
+    }
+
+    if (this.exifModifyDate) {
+      const exifDate = new Date(this.exifModifyDate)
       dates.add(exifDate.toISOString().split('T')[0])
 
       // Add day before
@@ -149,6 +207,47 @@ class ImageStructure {
   }
 
   static guessPhotoTimeByName(fileName = '') {
+    const beautyMatch = fileName.match(/beauty_(\d{12})\.(jpg|mp4)/i)
+    if (beautyMatch) {
+      const timestamp = beautyMatch[1]
+      const year = timestamp.slice(0, 4)
+      const month = timestamp.slice(4, 6)
+      const day = timestamp.slice(6, 8)
+      const hour = timestamp.slice(8, 10)
+      const minute = timestamp.slice(10, 12)
+      const second = '00' // Default to 00 for seconds
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`
+    }
+
+    // VideoEditor_20240501 14-28-54.mp4
+    const videoEditorMatch = fileName.match(/VideoEditor_(\d{8})\s(\d{2})-(\d{2})-(\d{2})\.mp4/)
+    if (videoEditorMatch) {
+      const [, date, hour, minute, second] = videoEditorMatch
+      const year = date.slice(0, 4)
+      const month = date.slice(4, 6)
+      const day = date.slice(6, 8)
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`
+    }
+
+    // Try V_20250408_225850_OC5.mp4 format
+    const videoMatch = fileName.match(/V_(\d{8})_(\d{6})_[A-Za-z]{1,2}\d\.mp4/i)
+    if (videoMatch) {
+      const [, date, time] = videoMatch
+      const year = date.slice(0, 4)
+      const month = date.slice(4, 6)
+      const day = date.slice(6, 8)
+      const hour = time.slice(0, 2)
+      const minute = time.slice(2, 4)
+      return `${year}-${month}-${day}T${hour}:${minute}:00.000Z`
+    }
+
+    // Try 2025-01-12-14-38-05.mp4 format
+    const screenRecordMatch = fileName.match(/(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})\.mp4/)
+    if (screenRecordMatch) {
+      const [, year, month, day, hour, minute, second] = screenRecordMatch
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`
+    }
+
     // Try FB_IMG_1743571233206.jpg format
     const fbMatch = fileName.match(/FB_IMG_(\d{13})/i)
     if (fbMatch) {

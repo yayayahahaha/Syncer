@@ -1,3 +1,6 @@
+沒找到的/
+delete-backup/
+params.json
 credentials.json
 photos_to_check/*
 !photos_to_check/.gitkeep
