@@ -4,6 +4,15 @@ import { PHOTO_DIR } from './const.js'
 import exiftoolVendored from 'exiftool-vendored'
 const { ExifTool } = exiftoolVendored
 
+function checkTimeFormat(time) {
+  try {
+    new Date(time).toISOString()
+    return time
+  } catch {
+    return null
+  }
+}
+
 async function generateExifData(filePath, { fallbackDateList = [] }) {
   const exiftool = new ExifTool({ taskTimeoutMillis: 5000 })
   const exiftoolTags = await exiftool.read(filePath)
@@ -12,7 +21,15 @@ async function generateExifData(filePath, { fallbackDateList = [] }) {
 
   const exifOriginTime = exiftoolTags.DateTimeOriginal?.toString() ?? null
   const exifCreateDate = exiftoolTags.CreateDate?.toString() ?? null
-  return new ImageStructure({ filePath, exifOriginTime, exifCreateDate, fallbackDateList, exiftoolTags })
+  const exifModifyDate = exiftoolTags.FileModifyDate?.toString() ?? null
+  return new ImageStructure({
+    filePath,
+    exifOriginTime,
+    exifCreateDate,
+    exifModifyDate,
+    fallbackDateList,
+    exiftoolTags,
+  })
 }
 
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG', 'mp4']
@@ -56,15 +73,19 @@ class DayRange {
 
 class ImageStructure {
   constructor(payload = {}) {
-    let { filePath, exifOriginTime, exifCreateDate, fallbackDateList, exiftoolTags } = payload
+    let { filePath, exifOriginTime, exifCreateDate, exifModifyDate, fallbackDateList, exiftoolTags } = payload
 
     this.#setValue('filePath', filePath ?? '')
     this.#setValue('fileName', path.parse(this.filePath).base)
-    this.#setValue('exifOriginTime', exifOriginTime ?? null)
-    this.#setValue('exifCreateDate', exifCreateDate ?? null)
+    this.#setValue('exifOriginTime', checkTimeFormat(exifOriginTime) ?? null)
+    this.#setValue('exifCreateDate', checkTimeFormat(exifCreateDate) ?? null)
+    this.#setValue('exifModifyDate', checkTimeFormat(exifModifyDate) ?? null)
     this.#setValue('exiftoolTags', exiftoolTags ?? null)
     this.#setValue('photoTimeByName', ImageStructure.guessPhotoTimeByName(this.fileName))
-    this.#setValue('possibleCreateTime', this.exifOriginTime ?? this.exifCreateDate ?? this.photoTimeByName ?? null)
+    this.#setValue(
+      'possibleCreateTime',
+      this.exifOriginTime ?? this.exifCreateDate ?? this.exifModifyDate ?? this.photoTimeByName ?? null
+    )
 
     this._fallbackDateList = fallbackDateList ?? []
     this.#setPossibleCreateDateList()
@@ -111,6 +132,21 @@ class ImageStructure {
 
     if (this.exifCreateDate) {
       const exifDate = new Date(this.exifCreateDate)
+      dates.add(exifDate.toISOString().split('T')[0])
+
+      // Add day before
+      const prevDay = new Date(exifDate)
+      prevDay.setDate(prevDay.getDate() - 1)
+      dates.add(prevDay.toISOString().split('T')[0])
+
+      // Add day after
+      const nextDay = new Date(exifDate)
+      nextDay.setDate(nextDay.getDate() + 1)
+      dates.add(nextDay.toISOString().split('T')[0])
+    }
+
+    if (this.exifModifyDate) {
+      const exifDate = new Date(this.exifModifyDate)
       dates.add(exifDate.toISOString().split('T')[0])
 
       // Add day before
@@ -171,6 +207,18 @@ class ImageStructure {
   }
 
   static guessPhotoTimeByName(fileName = '') {
+    const beautyMatch = fileName.match(/beauty_(\d{12})\.(jpg|mp4)/i);
+    if (beautyMatch) {
+      const timestamp = beautyMatch[1];
+      const year = timestamp.slice(0, 4);
+      const month = timestamp.slice(4, 6);
+      const day = timestamp.slice(6, 8);
+      const hour = timestamp.slice(8, 10);
+      const minute = timestamp.slice(10, 12);
+      const second = '00'; // Default to 00 for seconds
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`;
+    }
+
     // VideoEditor_20240501 14-28-54.mp4
     const videoEditorMatch = fileName.match(/VideoEditor_(\d{8})\s(\d{2})-(\d{2})-(\d{2})\.mp4/)
     if (videoEditorMatch) {
