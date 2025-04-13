@@ -59,6 +59,9 @@ async function main() {
 
   // 比對每一張照片的檔名與時間
   console.log(MSG.ACTION('開始比對照片...'))
+  let successCount = 0
+  let timeSuccessCount = 0
+  let failedCount = 0
   const output = localPhotos.map((photo) => {
     let matchedDate = null
     let match = null
@@ -95,9 +98,11 @@ async function main() {
     }
 
     if (match) {
+      successCount++
       if (match.isFilenameMatched) {
         console.log(MSG.SUCCESS(`找到 ${photo.fileName} 的備份 (透過檔名匹配，日期: ${matchedDate})`))
       } else {
+        timeSuccessCount++
         console.log(
           MSG.INFO(
             `找到 ${photo.fileName} 的備份 (透過時間匹配，日期: ${photo.possibleCreateTime}, 誤差為 ${match.deltaTime} 毫秒)`
@@ -105,6 +110,7 @@ async function main() {
         )
       }
     } else {
+      failedCount++
       if (!photo.possibleCreateTime) {
         console.log(MSG.WARNING(`沒有找到 ${photo.fileName} 的備份 (此照片無創建時間，僅檢查檔名)`))
       } else {
@@ -119,6 +125,9 @@ async function main() {
     }
     return { ...photo, ...match }
   })
+  console.log(
+    MSG.INFO(`找到了 ${successCount} 張, 其中有 ${timeSuccessCount} 張是透過時間匹配, 有 ${failedCount} 張沒找到`)
+  )
   console.log()
 
   // 輸出結果

@@ -32,7 +32,7 @@ async function generateExifData(filePath, { fallbackDateList = [] }) {
   })
 }
 
-const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG', 'mp4']
+const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG', 'mp4', 'mov']
 
 class DayRange {
   constructor(value = Date.now()) {
@@ -207,16 +207,16 @@ class ImageStructure {
   }
 
   static guessPhotoTimeByName(fileName = '') {
-    const beautyMatch = fileName.match(/beauty_(\d{12})\.(jpg|mp4)/i);
+    const beautyMatch = fileName.match(/beauty_(\d{12})\.(jpg|mp4)/i)
     if (beautyMatch) {
-      const timestamp = beautyMatch[1];
-      const year = timestamp.slice(0, 4);
-      const month = timestamp.slice(4, 6);
-      const day = timestamp.slice(6, 8);
-      const hour = timestamp.slice(8, 10);
-      const minute = timestamp.slice(10, 12);
-      const second = '00'; // Default to 00 for seconds
-      return `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`;
+      const timestamp = beautyMatch[1]
+      const year = timestamp.slice(0, 4)
+      const month = timestamp.slice(4, 6)
+      const day = timestamp.slice(6, 8)
+      const hour = timestamp.slice(8, 10)
+      const minute = timestamp.slice(10, 12)
+      const second = '00' // Default to 00 for seconds
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`
     }
 
     // VideoEditor_20240501 14-28-54.mp4
