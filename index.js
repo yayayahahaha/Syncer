@@ -47,7 +47,7 @@ async function main() {
     const items = await getOrSetCache(dateStr, async () => {
       const { error, data } = await searchGooglePhotosByDate(auth, dateStr)
       if (!error) console.log(MSG.INFO(`${dateStr} 取得 ${data.length} 筆 Google Photos 資料`))
-      else console.log(MSG.ERROR('取得 Google Photos 資料失敗!'))
+      else console.log(MSG.ERROR(`取得 Google Photos 資料失敗! ${await error.text()}`))
       return { error, data }
     })
 
