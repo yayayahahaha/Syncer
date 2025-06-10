@@ -110,6 +110,7 @@ export async function searchGooglePhotosByDate(auth, dateStr) {
 
   let nextPageToken = null
   const itemsForDate = []
+  let error = null
 
   do {
     const response = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems:search', {
@@ -144,6 +145,7 @@ export async function searchGooglePhotosByDate(auth, dateStr) {
 
     if (!response.ok) {
       console.error(`🔓 Google API 錯誤: ${response.status} ${response.statusText}`)
+      error = response
 
       if (response.status === 401) {
         console.log('🔄 金鑰無效，重新取得金鑰...')
@@ -159,5 +161,5 @@ export async function searchGooglePhotosByDate(auth, dateStr) {
     nextPageToken = data.nextPageToken
   } while (nextPageToken)
 
-  return itemsForDate
+  return { error, data: itemsForDate }
 }

@@ -45,9 +45,10 @@ async function main() {
     console.log(MSG.ACTION(`正在查詢 ${dateStr} 的備份資料...`))
 
     const items = await getOrSetCache(dateStr, async () => {
-      const result = await searchGooglePhotosByDate(auth, dateStr)
-      console.log(MSG.INFO(`${dateStr} 取得 ${result.length} 筆 Google Photos 資料`))
-      return result
+      const { error, data } = await searchGooglePhotosByDate(auth, dateStr)
+      if (!error) console.log(MSG.INFO(`${dateStr} 取得 ${data.length} 筆 Google Photos 資料`))
+      else console.log(MSG.ERROR('取得 Google Photos 資料失敗!'))
+      return { error, data }
     })
 
     googlePhotosMap[dateStr] = {
