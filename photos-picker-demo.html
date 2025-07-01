@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Google Photos Picker Demo</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 2em;
+      }
+
+      #photos {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 1em;
+      }
+
+      .photo-item {
+        border: 1px solid #ccc;
+        padding: 5px;
+        border-radius: 4px;
+      }
+
+      .photo-item img {
+        max-width: 150px;
+        max-height: 150px;
+        display: block;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Google Photos Picker (Web Demo)</h1>
+    <button id="signin-btn">登入 Google</button>
+    <button id="pick-btn" disabled>選擇相片</button>
+    <div id="photos"></div>
+    <pre id="output"></pre>
+    <script>
+      const CLIENT_ID = '2775247478-1emea2j3eeef90mtu1ok2v74vq5ucpa6.apps.googleusercontent.com'
+      const SCOPES = 'https://www.googleapis.com/auth/photospicker.mediaitems.readonly'
+      const API_KEY = '__INPUT_YOUR_GOOGLE_API_KEY__'
+
+      let tokenClient
+      let accessToken = null
+      let pickerUrl = ''
+      let pickerWindow = null
+      let sessionId = null
+      let sentPhotoIds = new Set()
+      const sessionMap = {}
+      const UNSELECTED_MSG =
+        'The user has not picked media items for this session. Please redirect the user to the Google Photos Picker UI or create a new session if this session has expired.'
+
+      // 嘗試從 localStorage 取得 token
+      window.addEventListener('DOMContentLoaded', async () => {
+        const savedToken = localStorage.getItem('google_photospicker_token')
+        if (savedToken == null) return
+
+        // health check
+        const ok = await checkTokenHealth(savedToken)
+        if (!ok) localStorage.removeItem('google_photospicker_token')
+        else {
+          accessToken = savedToken
+          document.getElementById('pick-btn').disabled = false
+          document.getElementById('output').textContent = '已自動登入，Access Token: ' + accessToken
+        }
+      })
+
+      // 登入按鈕
+      document.getElementById('signin-btn').onclick = () => {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: SCOPES,
+          callback: async (tokenResponse) => {
+            accessToken = tokenResponse.access_token
+            localStorage.setItem('google_photospicker_token', accessToken)
+            document.getElementById('pick-btn').disabled = false
+            document.getElementById('output').textContent = '已登入，Access Token: ' + accessToken
+          },
+        })
+        tokenClient.requestAccessToken()
+      }
+
+      // 檢查 token 是無不是健康的
+      async function checkTokenHealth(token) {
+        try {
+          const res = await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' + token)
+          if (!res.ok) return false
+          const data = await res.json()
+          return !data.error && data.expires_in > 0
+        } catch {
+          return false
+        }
+      }
+
+      document.getElementById('pick-btn').onclick = async () => {
+        if (!accessToken) return
+
+        const {
+          id: sessionId,
+          pickerUri,
+          error,
+        } = await fetch('https://photospicker.googleapis.com/v1/sessions', {
+          method: 'post',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+          .then((r) => r.json())
+          .catch((error) => ({ error }))
+        if (error != null) {
+          alert('發生錯誤了')
+          console.error(error)
+          return
+        }
+
+        window.open(pickerUri, '_blank')
+        const result = await getPickedPhotos(sessionId)
+      }
+
+      async function getPickedPhotos(sessionId) {
+        if (sessionId == null) return { error: 'sessionId 不可為空' }
+
+        const result = await myFn()
+        console.log(result)
+        return result
+
+        async function myFn(pageToken = undefined, previous = []) {
+          let url = `https://photospicker.googleapis.com/v1/mediaItems?sessionId=${sessionId}`
+          if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`
+          const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+          const { mediaItems, nextPageToken, error } = await res.json()
+          if (error) {
+            if (error.message !== UNSELECTED_MSG) {
+              return { ok: false, msg: '呼叫 api 失敗', payload: null, error }
+            } else {
+              await new Promise((r) => setTimeout(r, 2000))
+              return await myFn()
+            }
+          }
+
+          if (Array.isArray(mediaItems)) {
+            // 過濾未送出的照片
+            const newPhotos = mediaItems.filter((item) => !sentPhotoIds.has(item.id))
+            if (newPhotos.length > 0) {
+              // 呼叫 picker-server.js 的 /api/photos
+              await fetch('http://localhost:8080/api/photos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newPhotos),
+              })
+              // 記錄已送出的 id
+              newPhotos.forEach((item) => sentPhotoIds.add(item.id))
+            }
+          }
+          if (nextPageToken != null) {
+            // 有下一頁，繼續遞迴
+            return await myFn(nextPageToken, previous.concat(mediaItems))
+          } else {
+            // 沒有下一頁，結束
+            console.log('所有照片已抓取完畢')
+            return { ok: true, msg: '成功', payload: previous.concat(mediaItems) }
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
