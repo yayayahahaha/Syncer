@@ -86,7 +86,7 @@ function isCloseTime(a, b, TIME_TOLERANCE = 2000) {
 // 檢查兩個照片是否匹配
 export function isMatching(localPhoto, googlePhoto) {
   // 檢查時間是否在可能的時間範圍內
-  const googleTime = new Date(googlePhoto.mediaMetadata.creationTime).getTime()
+  const googleTime = new Date(googlePhoto.createTime).getTime()
   const localTime = new Date(localPhoto.possibleCreateTime).getTime()
   const timeDiff = Math.abs(googleTime - localTime)
   const timeThreshold = 1000 // 1 秒的誤差

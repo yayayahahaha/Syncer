@@ -3,9 +3,11 @@
 	"dependencies": {
 		"@google-cloud/local-auth": "^3.0.1",
 		"exiftool-vendored": "^29.3.0",
+		"express": "^5.1.0",
 		"fast-glob": "^3.3.3",
 		"googleapis": "^148.0.0",
-		"node-fetch": "^3.3.2"
+		"node-fetch": "^3.3.2",
+		"open": "^10.1.2"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.24.0",

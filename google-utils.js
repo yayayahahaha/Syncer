@@ -2,8 +2,11 @@ import { authenticate } from '@google-cloud/local-auth'
 import fs from 'fs/promises'
 import path from 'path'
 import fetch from 'node-fetch'
+import open from 'open'
+import http from 'http'
+import { URL } from 'url'
 
-const SCOPES = ['https://www.googleapis.com/auth/photoslibrary.readonly']
+const SCOPES = ['https://www.googleapis.com/auth/photospicker.mediaitems.readonly']
 const CREDENTIALS_PATH = path.join(process.cwd(), 'credentials.json')
 const TOKEN_PATH = path.join(process.cwd(), 'token.json')
 
@@ -102,6 +105,40 @@ export async function authorize(force = false) {
   }
 }
 
+export async function letUserSelectPhotos(auth) {
+  const accessToken = (await auth.getAccessToken()).token
+  const redirectPort = 34567
+  const redirectUri = `http://localhost:${redirectPort}/photos-picker-callback`
+  // 這個 URL 只是範例，實際上 Google 官方未公開 photospicker UI，這裡假設有這個 endpoint
+  const pickerUrl = `https://photos.google.com/share/photospicker?access_token=${encodeURIComponent(accessToken)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=photoslibrary&scope=https://www.googleapis.com/auth/photospicker.mediaitems.readonly`
+
+  const server = http.createServer(async (req, res) => {
+    if (req.url.startsWith('/photos-picker-callback')) {
+      const urlObj = new URL(req.url, `http://localhost:${redirectPort}`)
+      const photosJson = urlObj.searchParams.get('photos')
+      res.writeHead(200, { 'Content-Type': 'text/html' })
+      res.end('<h2>✅ 已收到您的選擇，請回到 Terminal</h2>')
+      if (photosJson) {
+        try {
+          const photos = JSON.parse(decodeURIComponent(photosJson))
+          console.log('🖼️ 使用者選擇的相片：')
+          console.log(JSON.stringify(photos, null, 2))
+        } catch (e) {
+          console.error('❌ 解析選擇結果失敗:', e)
+        }
+      } else {
+        console.log('⚠️ 沒有收到選擇的相片')
+      }
+      server.close()
+    }
+  })
+
+  server.listen(redirectPort, () => {
+    console.log('🌐 等待 Google Photos Picker 回傳...')
+    open(pickerUrl)
+  })
+}
+
 // 根據指定日期查詢 Google Photos，返回該日所有媒體項目
 export async function searchGooglePhotosByDate(auth, dateStr) {
   const startDate = new Date(dateStr)
@@ -163,3 +200,17 @@ export async function searchGooglePhotosByDate(auth, dateStr) {
 
   return { error, data: itemsForDate }
 }
+
+// 直接透過 pages 查詢所有的 photos
+export async function listPhotosWithFetch(auth) {
+  const accessToken = (await auth.getAccessToken()).token
+  let nextPageToken = null
+  let count = 0
+
+  do {
+    const res = await fetch(
+      `https://photoslibrary.googleapis.com/v1/mediaItems?pageSize=10${
+        nextPageToken ? `&pageToken=${nextPageToken}` : ''
+      }`,
+      {
+        headers:

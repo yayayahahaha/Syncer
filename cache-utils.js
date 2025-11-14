@@ -1,15 +1,16 @@
 import fs from 'fs/promises'
 import path from 'path'
+import { MSG } from './utils.js'
 
-const CACHE_DIR = path.join(process.cwd(), 'cache')
+const PHOTO_DIR = path.join(process.cwd(), 'photos')
 const RECENT_DAYS = 3
 
 // 確保 cache 資料夾存在
-export async function ensureCacheDir() {
+export async function ensurePhotosDir() {
   try {
-    await fs.access(CACHE_DIR)
+    await fs.access(PHOTO_DIR)
   } catch {
-    await fs.mkdir(CACHE_DIR)
+    await fs.mkdir(PHOTO_DIR)
   }
 }
 
@@ -22,28 +23,16 @@ function isRecentDate(dateStr) {
 }
 
 // 從快取讀取或寫入資料
-export async function getOrSetCache(dateStr, getter) {
-  const cachePath = path.join(CACHE_DIR, `${dateStr}.json`)
+export async function getPhotoInfoFromFolders(dateStr) {
+  const photoFilePath = path.join(PHOTO_DIR, `${dateStr}.json`)
 
   try {
     // 嘗試讀取快取
-    const cacheData = await fs.readFile(cachePath, 'utf-8')
-    console.log(`📦 從快取讀取 ${dateStr} 的資料`)
+    const cacheData = await fs.readFile(photoFilePath, 'utf-8')
+    console.log(`📦 從 photos 資料夾讀取 ${dateStr} 的資料`)
     return JSON.parse(cacheData)
   } catch {
-    // 如果沒有快取或讀取失敗，執行 getter
-    const { error, data } = await getter()
-
-    if (error != null) {
-      console.log(`⚠️ 取得 ${dateStr} 的 Google Photo API 失敗! 不進行快取`)
-    } else if (!isRecentDate(dateStr)) {
-      // 如果不是最近幾天的資料，就存入快取
-      console.log(`💾 將 ${dateStr} 的資料存入快取`)
-      await fs.writeFile(cachePath, JSON.stringify(data, null, 2))
-    } else {
-      console.log(`⚠️ ${dateStr} 是最近 ${RECENT_DAYS} 天的資料，不進行快取`)
-    }
-
-    return data
+    console.log(MSG.ERROR(`photos 資料夾內沒有要查找的日期 ${dateStr} 的資料!`))
+    return []
   }
 }
