@@ -32,7 +32,7 @@ export async function getPhotoInfoFromFolders(dateStr) {
     console.log(`📦 從 photos 資料夾讀取 ${dateStr} 的資料`)
     return JSON.parse(cacheData)
   } catch {
-    MSG.ERROR(`photos 資料夾內沒有要查找的日期 ${dateStr} 的資料!`)
+    console.log(MSG.ERROR(`photos 資料夾內沒有要查找的日期 ${dateStr} 的資料!`))
     return []
   }
 }

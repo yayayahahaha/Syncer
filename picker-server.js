@@ -2,6 +2,7 @@ import express from 'express'
 import { createServer } from 'http'
 import path from 'path'
 import fs from 'fs/promises'
+import { MSG } from './utils'
 
 const app = express()
 const server = createServer(app)
@@ -17,6 +18,7 @@ app.get('/', (req, res) => {
 app.post('/api/photos', async (req, res) => {
   try {
     const photos = req.body
+    console.log(MSG.INFO(`收到來自前端的 ${photos.length} 張照片資料`))
     if (!Array.isArray(photos) || photos.length === 0) {
       return res.status(400).json({ error: 'No photos data' })
     }
@@ -38,7 +40,9 @@ app.post('/api/photos', async (req, res) => {
         await fs.access(filePath)
         const old = await fs.readFile(filePath, 'utf-8')
         merged = JSON.parse(old)
-      } catch {}
+      } catch (error) {
+        console.log(MSG.ERROR(error))
+      }
       // 2. 合併新舊資料，避免重複 id
       const all = [...merged, ...group.filter((p) => !merged.some((m) => m.id === p.id))]
       // 3. 依 createTime 排序
@@ -49,6 +53,7 @@ app.post('/api/photos', async (req, res) => {
       })
       // 4. 寫回檔案
       await fs.writeFile(filePath, JSON.stringify(all, null, 2))
+      console.log(MSG.SUCCESS(`已為日期 ${date} 儲存 ${all.length} 張照片到 ${filePath}`))
       result[date] = all.length
     }
     res.json({ ok: true, files: result })

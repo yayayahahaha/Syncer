@@ -6,6 +6,7 @@ photos_to_check/*
 !photos_to_check/.gitkeep
 token.json
 cache/
+photos/
 
 # Reference: https://www.npmjs.com/package/create-gitignore
 
