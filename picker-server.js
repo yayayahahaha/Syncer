@@ -2,7 +2,7 @@ import express from 'express'
 import { createServer } from 'http'
 import path from 'path'
 import fs from 'fs/promises'
-import { MSG } from './utils'
+import { MSG } from './utils.js'
 
 const app = express()
 const server = createServer(app)
@@ -37,11 +37,22 @@ app.post('/api/photos', async (req, res) => {
       let merged = []
       // 1. 檢查檔案是否存在，若存在則讀取舊資料
       try {
-        await fs.access(filePath)
-        const old = await fs.readFile(filePath, 'utf-8')
-        merged = JSON.parse(old)
-      } catch (error) {
-        console.log(MSG.ERROR(error))
+        const oldData = await fs.readFile(filePath, 'utf-8')
+        try {
+          merged = JSON.parse(oldData)
+          console.log(MSG.SUCCESS(`成功讀取並解析舊檔案 ${filePath}，既有 ${merged.length} 筆資料。`))
+        } catch (parseError) {
+          console.log(MSG.ERROR(`解析舊檔案 ${filePath} 失敗，將重新創建。錯誤: ${parseError.message}`))
+          merged = [] // 確保在解析失敗時，從空陣列開始
+        }
+      } catch (readError) {
+        if (readError.code === 'ENOENT') {
+          // 檔案不存在，這是正常情況，不需要印出錯誤
+          console.log(MSG.INFO(`找不到舊檔案 ${filePath}，將直接建立新檔案。`))
+        } else {
+          // 其他讀取錯誤
+          console.log(MSG.ERROR(`讀取檔案 ${filePath} 時發生預期外的錯誤: ${readError.message}`))
+        }
       }
       // 2. 合併新舊資料，避免重複 id
       const all = [...merged, ...group.filter((p) => !merged.some((m) => m.id === p.id))]
