@@ -19,7 +19,7 @@ function getCurrentSelectNumber() {
 }
 
 function scrollDown(top = false) {
-  const container = document.querySelector('.Purf9b.THsa9b.zcLWac.eejsDc.lnJaGb.x2Gptc')
+  const container = document.querySelector('.Purf9b.THsa9b.zcLWac.eejsDc.lnJaGb')
   if (top) {
     container.scrollTop = 0
     return true
